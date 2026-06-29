@@ -9,6 +9,7 @@ const ALL_ITEMS: (NavItem & { roles: Role[] })[] = [
   { href: "/stock", label: "Stock", roles: SECTION_ROLES["/stock"] },
   { href: "/sales", label: "Sales", roles: SECTION_ROLES["/sales"] },
   { href: "/customers", label: "Customers", roles: SECTION_ROLES["/customers"] },
+  { href: "/reports", label: "Reports", roles: SECTION_ROLES["/reports"] },
   { href: "/admin/users", label: "Users", roles: ["ADMIN"] },
   { href: "/admin/exchange-rate", label: "Exchange Rate", roles: ["ADMIN"] },
 ];

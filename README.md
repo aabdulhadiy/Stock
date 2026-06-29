@@ -117,10 +117,15 @@ src/
 - **Void** — restores stock via `VOID_RETURN`, flips status, excluded from revenue (admin or the manager who made the sale)
 - Sales history (manager: own shop; admin: all + shop filter) and on-screen sale summary with suggested-vs-actual variance
 
+**Phase 3 — reporting** (`lib/reports.ts`, `lib/date-range.ts`)
+- **Cash Position Dashboard** — per-shop UZS and USD collected, kept separate (what should be in each drawer); admin sees all shops side-by-side, manager sees own; voided sales excluded
+- **Sales performance** — by shop / manager / product / customer, in a UZS-equivalent so cross-currency comparisons are apples-to-apples (each line converted via its sale's snapshot rate)
+- **Discount/markup variance** — suggested vs actual totals by manager
+- Date-range filter (today / this week / this month / custom), role-scoped (managers see only their own shop)
+
 ### Roadmap
 
-- **Phase 3** — reporting (cash position, sales performance, discount variance)
-- **Phase 4** — Excel/PDF export, deployment hardening
+- **Phase 4** — Excel/PDF export (respecting on-screen filters), deployment hardening
 
 ## Optional: SessionStart hook for Claude Code on the web
 
