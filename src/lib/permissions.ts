@@ -19,9 +19,12 @@ export const can = {
   viewWarehouseStock: (u: SessionUser) =>
     u.role === "ADMIN" || u.role === "WAREHOUSE",
 
-  recordSale: (u: SessionUser) => u.role === "SALES_MANAGER",
+  // Admins may also record sales (choosing the shop); managers sell their own.
+  recordSale: (u: SessionUser) => u.role === "ADMIN" || u.role === "SALES_MANAGER",
   manageCustomers: (u: SessionUser) =>
     u.role === "ADMIN" || u.role === "SALES_MANAGER",
+  // Editing existing customer records is admin-only; managers add/search in-sale.
+  editCustomers: (u: SessionUser) => u.role === "ADMIN",
 
   // Can this user act on (sell/transfer into) a given shop?
   actOnShop: (u: SessionUser, shopId: string) =>
@@ -32,6 +35,14 @@ export const can = {
   viewShopReports: (u: SessionUser, shopId: string) =>
     u.role === "ADMIN" || (u.role === "SALES_MANAGER" && u.shopId === shopId),
 };
+
+/** A sale may be voided by an admin or by the manager who created it (spec 4.4). */
+export function canVoidSale(
+  user: SessionUser,
+  sale: { salesManagerId: string },
+): boolean {
+  return user.role === "ADMIN" || user.sub === sale.salesManagerId;
+}
 
 /** Roles allowed to reach a top-level section (coarse gate for middleware/nav). */
 export const SECTION_ROLES: Record<string, Role[]> = {

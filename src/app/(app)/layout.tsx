@@ -7,7 +7,10 @@ const ALL_ITEMS: (NavItem & { roles: Role[] })[] = [
   { href: "/dashboard", label: "Dashboard", roles: ["ADMIN", "WAREHOUSE", "SALES_MANAGER"] },
   { href: "/products", label: "Products", roles: SECTION_ROLES["/products"] },
   { href: "/stock", label: "Stock", roles: SECTION_ROLES["/stock"] },
+  { href: "/sales", label: "Sales", roles: SECTION_ROLES["/sales"] },
+  { href: "/customers", label: "Customers", roles: SECTION_ROLES["/customers"] },
   { href: "/admin/users", label: "Users", roles: ["ADMIN"] },
+  { href: "/admin/exchange-rate", label: "Exchange Rate", roles: ["ADMIN"] },
 ];
 
 export default async function AppLayout({

@@ -95,12 +95,14 @@ src/
   app/
     login/           # auth
     (app)/           # authenticated shell
-      dashboard/  products/  products/import/  stock/  admin/users/
+      dashboard/  products/  stock/  sales/  customers/
+      admin/users/  admin/exchange-rate/
   proxy.ts           # auth + role gating (Next 16 "proxy" middleware)
 ```
 
-## What's implemented (Phase 1)
+## What's implemented
 
+**Phase 1 — foundation**
 - Auth (JWT cookie + bcrypt), role + shop scoping
 - User management (admin)
 - Product catalog CRUD (admin), derived `is_active` archive behavior, admin-only cost price
@@ -108,9 +110,15 @@ src/
 - Stock ledger — **Stock-In** and **Transfer**, with negative-stock guards
 - Stock-level views with role-aware visibility (sales managers don't see the warehouse column)
 
+**Phase 2 — customers & sales**
+- Admin-managed **exchange rate** (append-only history; each sale snapshots the active rate)
+- **Customers** — shared list, search by name/phone, create (admin + manager), edit (admin), region→district pickers
+- **New Sale** (`lib/sales.ts`) — per-sale currency (UZS/USD) with live suggested-price conversion, per-item price override, units-per-box→pcs helper, customer search / create-inline / "Other" one-time; atomic sale + `SALE_OUT` stock deduction (rolls back if short)
+- **Void** — restores stock via `VOID_RETURN`, flips status, excluded from revenue (admin or the manager who made the sale)
+- Sales history (manager: own shop; admin: all + shop filter) and on-screen sale summary with suggested-vs-actual variance
+
 ### Roadmap
 
-- **Phase 2** — customers + sales (multi-currency checkout, price override, units-per-box helper, void)
 - **Phase 3** — reporting (cash position, sales performance, discount variance)
 - **Phase 4** — Excel/PDF export, deployment hardening
 
