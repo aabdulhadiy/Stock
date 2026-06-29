@@ -12,6 +12,7 @@ import { formatMoney } from "@/lib/currency";
 import { Card, CardHeader, CardTitle, Table, Th, Td, EmptyState, Badge } from "@/components/ui";
 import { DateFilter } from "@/components/date-filter";
 import { ReportTabs } from "@/components/report-tabs";
+import { ExportButtons } from "@/components/export-buttons";
 
 export default async function SalesReportPage({
   searchParams,
@@ -45,7 +46,10 @@ export default async function SalesReportPage({
       </div>
 
       <ReportTabs role={user.role} />
-      <DateFilter basePath="/reports/sales" range={range} />
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <DateFilter basePath="/reports/sales" range={range} />
+        <ExportButtons basePath="/export/sales" params={{ preset: sp.preset, from: sp.from, to: sp.to }} />
+      </div>
       <p className="text-sm text-muted">
         {range.label}: {range.from.toLocaleDateString()} – {range.to.toLocaleDateString()}
       </p>

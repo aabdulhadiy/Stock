@@ -61,6 +61,26 @@ docker compose up -d db
 docker compose up --build     # app on :3000, db on :5432
 ```
 
+## Deploy on Dokploy
+
+The app builds to a standalone image (`output: "standalone"`) via the included
+`Dockerfile`. On container start the entrypoint runs DB migrations
+(`scripts/migrate.mjs`, using drizzle-orm's migrator — no drizzle-kit needed at
+runtime) and then starts the server.
+
+1. Create a new Dokploy application pointing at this repo (the existing GitLab
+   connection from Pixly can be reused).
+2. Provision a **separate Postgres database** (own DB on the shared instance is
+   fine) and set these environment variables:
+   - `DATABASE_URL` — `postgresql://user:pass@host:5432/dbname`
+   - `AUTH_SECRET` — a long random string
+   - `SEED_ADMIN_EMAIL`, `SEED_ADMIN_PASSWORD`, `SEED_EXCHANGE_RATE` — only used
+     by the one-off `npm run db:seed` (run once after first deploy to create the
+     warehouse, shops, regions, admin user, and initial rate).
+3. Health check path: `GET /api/health` → `200 {"ok":true}`.
+4. Build runs `next build`; the container migrates on boot, so deploys apply new
+   migrations automatically.
+
 ## Scripts
 
 | Command | What it does |

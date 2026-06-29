@@ -3,6 +3,7 @@ import { requireUser } from "@/lib/auth";
 import { can } from "@/lib/permissions";
 import { getStockMatrix } from "@/lib/queries";
 import { Button, Card, Table, Th, Td, Badge, EmptyState } from "@/components/ui";
+import { ExportButtons } from "@/components/export-buttons";
 
 export default async function StockPage() {
   const user = await requireUser();
@@ -14,8 +15,6 @@ export default async function StockPage() {
     return true;
   });
 
-  const canMove = can.stockIn(user) || can.transfer(user);
-
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -26,20 +25,19 @@ export default async function StockPage() {
             {user.role === "SALES_MANAGER" && " Other shops are read-only."}
           </p>
         </div>
-        {canMove && (
-          <div className="flex gap-3">
-            {can.stockIn(user) && (
-              <Link href="/stock/in">
-                <Button variant="secondary">Stock in</Button>
-              </Link>
-            )}
-            {can.transfer(user) && (
-              <Link href="/stock/transfer">
-                <Button>Transfer</Button>
-              </Link>
-            )}
-          </div>
-        )}
+        <div className="flex items-center gap-3">
+          <ExportButtons basePath="/export/stock" />
+          {can.stockIn(user) && (
+            <Link href="/stock/in">
+              <Button variant="secondary">Stock in</Button>
+            </Link>
+          )}
+          {can.transfer(user) && (
+            <Link href="/stock/transfer">
+              <Button>Transfer</Button>
+            </Link>
+          )}
+        </div>
       </div>
 
       <Card>

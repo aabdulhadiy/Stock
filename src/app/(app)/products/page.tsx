@@ -3,6 +3,7 @@ import { requireUser } from "@/lib/auth";
 import { can } from "@/lib/permissions";
 import { getProductsList } from "@/lib/queries";
 import { Button, Card, Table, Th, Td, Badge, EmptyState } from "@/components/ui";
+import { ExportButtons } from "@/components/export-buttons";
 
 export default async function ProductsPage() {
   const user = await requireUser();
@@ -17,16 +18,19 @@ export default async function ProductsPage() {
           <h1 className="text-2xl font-bold">Products</h1>
           <p className="text-muted text-sm mt-1">{products.length} products in catalog</p>
         </div>
-        {isAdmin && (
-          <div className="flex gap-3">
-            <Link href="/products/import">
-              <Button variant="secondary">Bulk import</Button>
-            </Link>
-            <Link href="/products/new">
-              <Button>New product</Button>
-            </Link>
-          </div>
-        )}
+        <div className="flex items-center gap-3">
+          <ExportButtons basePath="/export/products" />
+          {isAdmin && (
+            <>
+              <Link href="/products/import">
+                <Button variant="secondary">Bulk import</Button>
+              </Link>
+              <Link href="/products/new">
+                <Button>New product</Button>
+              </Link>
+            </>
+          )}
+        </div>
       </div>
 
       <Card>
