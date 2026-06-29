@@ -36,7 +36,17 @@ section gating also runs in `src/proxy.ts`.
 
 ## Getting started (local)
 
-Prerequisites: Node 22, PostgreSQL 16 (local or via Docker).
+Prerequisites: Node 22, and Docker (for Postgres) or a local PostgreSQL 16.
+
+**Quick start (one command):**
+
+```bash
+npm install
+npm run setup     # starts the Docker DB, applies migrations, seeds data
+npm run dev       # http://localhost:3000
+```
+
+**Or step by step:**
 
 ```bash
 cp .env.example .env          # adjust DATABASE_URL / AUTH_SECRET as needed
@@ -85,6 +95,7 @@ runtime) and then starts the server.
 
 | Command | What it does |
 |---|---|
+| `npm run setup` | One-shot local bootstrap: Docker DB + migrate + seed |
 | `npm run dev` | Start the dev server |
 | `npm run build` / `npm start` | Production build / serve |
 | `npm run lint` | ESLint |
