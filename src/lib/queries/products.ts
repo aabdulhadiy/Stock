@@ -13,6 +13,7 @@ import { toProductView, toStockView, type ProductView, type StockView } from "@/
 import { movementStatusFor } from "@/lib/labels";
 import { daysSince, today } from "@/lib/dates";
 import { getSettings } from "@/lib/settings";
+import { col } from "@/lib/sql";
 
 /**
  * Read queries for the catalog and the stock overview (§3, §4.1).
@@ -52,7 +53,7 @@ export const DEFAULT_PAGE_SIZE = 50;
 function baseSelect(exec: Executor) {
   const mainImage = sql<string | null>`(
     SELECT pi.url FROM product_images pi
-     WHERE pi.product_id = ${products.id}
+     WHERE pi.product_id = ${col(products.id)}
      ORDER BY pi.is_main DESC, pi.sort ASC, pi.created_at ASC
      LIMIT 1
   )`;
@@ -382,7 +383,7 @@ export async function listCategories(
       name: categories.name,
       active: categories.active,
       productCount: sql<number>`(
-        SELECT COUNT(*) FROM products p WHERE p.category_id = ${categories.id}
+        SELECT COUNT(*) FROM products p WHERE p.category_id = ${col(categories.id)}
       )`,
     })
     .from(categories)

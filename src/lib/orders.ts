@@ -22,6 +22,7 @@ import { writeAudit, type AuditInput } from "@/lib/audit";
 import { formatOrderNumber, getSettings } from "@/lib/settings";
 import { toUnits } from "@/lib/validation";
 import { addDays } from "@/lib/dates";
+import { col } from "@/lib/sql";
 
 /**
  * Order lifecycle (§5, §6, §7).
@@ -820,7 +821,7 @@ export async function getTopUpAlerts(
       reserved: orderItems.reservedQty,
       available: sql<number>`COALESCE((
         SELECT ps.on_hand - ps.reserved FROM product_stock ps
-         WHERE ps.product_id = ${orderItems.productId}
+         WHERE ps.product_id = ${col(orderItems.productId)}
       ), 0)`,
     })
     .from(orderItems)

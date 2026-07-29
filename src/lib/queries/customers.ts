@@ -4,6 +4,7 @@ import { db, type Executor } from "@/db";
 import { customers, orders, payments, type Channel, type PriceType } from "@/db/schema";
 import { gradeFromDelay, startOfYear, today } from "@/lib/dates";
 import type { CustomerGrade } from "@/lib/labels";
+import { col } from "@/lib/sql";
 
 /**
  * Customer read models (§8).
@@ -55,14 +56,14 @@ function customerAggregate(exec: Executor, yearStart: string, now: string) {
 
       orderCount: sql<number>`(
         SELECT COUNT(*) FROM orders o
-         WHERE o.customer_id = ${customers.id} AND o.status <> 'CANCELLED'
+         WHERE o.customer_id = ${col(customers.id)} AND o.status <> 'CANCELLED'
       )`,
 
       // Revenue counts shipped orders only — an order that never shipped is
       // not a sale (§10.3).
       salesYtdCents: sql<number>`COALESCE((
         SELECT SUM(o.total_cents) FROM orders o
-         WHERE o.customer_id = ${customers.id}
+         WHERE o.customer_id = ${col(customers.id)}
            AND o.status = 'SHIPPED'
            AND o.actual_ship_date >= ${yearStart}
       ), 0)`,
@@ -70,18 +71,30 @@ function customerAggregate(exec: Executor, yearStart: string, now: string) {
       paidCents: sql<number>`COALESCE((
         SELECT SUM(p.amount_cents) FROM payments p
          JOIN orders o ON o.id = p.order_id
-         WHERE o.customer_id = ${customers.id}
+         WHERE o.customer_id = ${col(customers.id)}
       ), 0)`,
 
+      // §11: goods that came back are not owed for, so return credit reduces
+      // the debt alongside payments received.
       debtCents: sql<number>`COALESCE((
-        SELECT SUM(o.total_cents - COALESCE((
-                 SELECT SUM(p.amount_cents) FROM payments p WHERE p.order_id = o.id
+        SELECT SUM(o.total_cents
+                   - COALESCE((
+                       SELECT SUM(p.amount_cents) FROM payments p WHERE p.order_id = o.id
+                     ), 0)
+                   - COALESCE((
+                 SELECT SUM(ri.qty_units * ri.unit_price_cents)
+                   FROM return_items ri JOIN returns rt ON rt.id = ri.return_id
+                  WHERE rt.order_id = o.id
                ), 0))
           FROM orders o
-         WHERE o.customer_id = ${customers.id}
+         WHERE o.customer_id = ${col(customers.id)}
            AND o.status = 'SHIPPED'
            AND o.total_cents > COALESCE((
                  SELECT SUM(p.amount_cents) FROM payments p WHERE p.order_id = o.id
+               ), 0) + COALESCE((
+                 SELECT SUM(ri.qty_units * ri.unit_price_cents)
+                   FROM return_items ri JOIN returns rt ON rt.id = ri.return_id
+                  WHERE rt.order_id = o.id
                ), 0)
       ), 0)`,
 
@@ -93,7 +106,11 @@ function customerAggregate(exec: Executor, yearStart: string, now: string) {
             CASE
               WHEN o.total_cents <= COALESCE((
                      SELECT SUM(p.amount_cents) FROM payments p WHERE p.order_id = o.id
-                   ), 0)
+                   ), 0) + COALESCE((
+                 SELECT SUM(ri.qty_units * ri.unit_price_cents)
+                   FROM return_items ri JOIN returns rt ON rt.id = ri.return_id
+                  WHERE rt.order_id = o.id
+               ), 0)
               THEN COALESCE((
                      SELECT MAX(p.paid_on) FROM payments p WHERE p.order_id = o.id
                    ), o.due_date) - o.due_date
@@ -101,7 +118,7 @@ function customerAggregate(exec: Executor, yearStart: string, now: string) {
             END
           ) AS delay
           FROM orders o
-          WHERE o.customer_id = ${customers.id}
+          WHERE o.customer_id = ${col(customers.id)}
             AND o.status = 'SHIPPED'
             AND o.due_date IS NOT NULL
         ) d
@@ -109,14 +126,18 @@ function customerAggregate(exec: Executor, yearStart: string, now: string) {
 
       latePaymentCount: sql<number>`COALESCE((
         SELECT COUNT(*) FROM orders o
-         WHERE o.customer_id = ${customers.id}
+         WHERE o.customer_id = ${col(customers.id)}
            AND o.status = 'SHIPPED'
            AND o.due_date IS NOT NULL
            AND (
              CASE
                WHEN o.total_cents <= COALESCE((
                       SELECT SUM(p.amount_cents) FROM payments p WHERE p.order_id = o.id
-                    ), 0)
+                    ), 0) + COALESCE((
+                 SELECT SUM(ri.qty_units * ri.unit_price_cents)
+                   FROM return_items ri JOIN returns rt ON rt.id = ri.return_id
+                  WHERE rt.order_id = o.id
+               ), 0)
                THEN COALESCE((
                       SELECT MAX(p.paid_on) FROM payments p WHERE p.order_id = o.id
                     ), o.due_date) > o.due_date
@@ -231,7 +252,7 @@ export async function getCustomerOrders(
       dueDate: orders.dueDate,
       totalCents: orders.totalCents,
       paidCents: sql<number>`COALESCE((
-        SELECT SUM(p.amount_cents) FROM payments p WHERE p.order_id = ${orders.id}
+        SELECT SUM(p.amount_cents) FROM payments p WHERE p.order_id = ${col(orders.id)}
       ), 0)`,
     })
     .from(orders)

@@ -20,7 +20,9 @@ import {
 import { availabilityOf, type Availability } from "@/lib/labels";
 import { daysBetween, today } from "@/lib/dates";
 import { pickingSummary, type PickingSummary } from "@/lib/orders";
+import { getOrderBalance } from "@/lib/payments";
 import { unitsToBoxes } from "@/lib/validation";
+import { col } from "@/lib/sql";
 
 /**
  * Order read models (§5, §7), role-scoped.
@@ -49,6 +51,7 @@ export interface OrderListRow {
   /** Present only for roles allowed to see sale prices. */
   totalCents?: number;
   paidCents?: number;
+  returnedCents?: number;
   balanceCents?: number;
   /** Days late shipping: positive is late, negative early, null if unshipped. */
   shipDelayDays: number | null;
@@ -111,7 +114,11 @@ export async function listOrders(
         eq(orders.status, "SHIPPED"),
         sql`${orders.dueDate} IS NOT NULL AND ${orders.dueDate} < ${now}`,
         sql`${orders.totalCents} > COALESCE((
-          SELECT SUM(p.amount_cents) FROM payments p WHERE p.order_id = ${orders.id}
+          SELECT SUM(p.amount_cents) FROM payments p WHERE p.order_id = ${col(orders.id)}
+        ), 0) + COALESCE((
+          SELECT SUM(ri.qty_units * ri.unit_price_cents)
+            FROM return_items ri JOIN returns rt ON rt.id = ri.return_id
+           WHERE rt.order_id = ${col(orders.id)}
         ), 0)`,
       ),
     );
@@ -147,16 +154,22 @@ export async function listOrders(
       totalCents: orders.totalCents,
       createdByName: users.name,
       lineCount: sql<number>`(
-        SELECT COUNT(*) FROM order_items oi WHERE oi.order_id = ${orders.id}
+        SELECT COUNT(*) FROM order_items oi WHERE oi.order_id = ${col(orders.id)}
       )`,
       totalUnits: sql<number>`COALESCE((
-        SELECT SUM(oi.qty_ordered_units) FROM order_items oi WHERE oi.order_id = ${orders.id}
+        SELECT SUM(oi.qty_ordered_units) FROM order_items oi WHERE oi.order_id = ${col(orders.id)}
       ), 0)`,
       reservedUnits: sql<number>`COALESCE((
-        SELECT SUM(oi.reserved_qty) FROM order_items oi WHERE oi.order_id = ${orders.id}
+        SELECT SUM(oi.reserved_qty) FROM order_items oi WHERE oi.order_id = ${col(orders.id)}
       ), 0)`,
       paidCents: sql<number>`COALESCE((
-        SELECT SUM(p.amount_cents) FROM payments p WHERE p.order_id = ${orders.id}
+        SELECT SUM(p.amount_cents) FROM payments p WHERE p.order_id = ${col(orders.id)}
+      ), 0)`,
+      // §11: returned goods credit the balance, so they belong in it.
+      returnedCents: sql<number>`COALESCE((
+        SELECT SUM(ri.qty_units * ri.unit_price_cents)
+          FROM return_items ri JOIN returns rt ON rt.id = ri.return_id
+         WHERE rt.order_id = ${col(orders.id)}
       ), 0)`,
     })
     .from(orders)
@@ -174,6 +187,8 @@ export async function listOrders(
       const totalUnits = Number(r.totalUnits);
       const reservedUnits = Number(r.reservedUnits);
       const paid = Number(r.paidCents);
+      const returned = Number(r.returnedCents);
+      const settledCents = paid + returned;
 
       const row: OrderListRow = {
         id: r.id,
@@ -195,7 +210,7 @@ export async function listOrders(
           ? daysBetween(r.plannedShipDate, r.actualShipDate)
           : null,
         overdueDays:
-          r.status === "SHIPPED" && r.dueDate && r.totalCents > paid
+          r.status === "SHIPPED" && r.dueDate && r.totalCents > settledCents
             ? Math.max(0, daysBetween(r.dueDate, now) ?? 0)
             : null,
       };
@@ -203,7 +218,8 @@ export async function listOrders(
       if (showMoney) {
         row.totalCents = r.totalCents;
         row.paidCents = paid;
-        row.balanceCents = r.totalCents - paid;
+        row.returnedCents = returned;
+        row.balanceCents = r.totalCents - settledCents;
       }
       return row;
     }),
@@ -254,6 +270,7 @@ export interface OrderDetail {
   /** Money, present only for roles allowed to see sale prices. */
   totalCents?: number;
   paidCents?: number;
+  returnedCents?: number;
   balanceCents?: number;
   payments?: {
     id: string;
@@ -292,10 +309,10 @@ export async function getOrderDetail(
       customerCity: customers.city,
       customerChannel: customers.channel,
       createdByName: sql<string | null>`(
-        SELECT u.name FROM users u WHERE u.id = ${orders.createdById}
+        SELECT u.name FROM users u WHERE u.id = ${col(orders.createdById)}
       )`,
       acceptedByName: sql<string | null>`(
-        SELECT u.name FROM users u WHERE u.id = ${orders.acceptedById}
+        SELECT u.name FROM users u WHERE u.id = ${col(orders.acceptedById)}
       )`,
     })
     .from(orders)
@@ -433,9 +450,11 @@ export async function getOrderDetail(
       .orderBy(desc(payments.paidOn));
 
     const paid = paymentRows.reduce((s, p) => s + Number(p.amountCents), 0);
+    const balance = await getOrderBalance(orderId, exec);
     detail.totalCents = toOrderTotal(order.totalCents, role);
     detail.paidCents = paid;
-    detail.balanceCents = order.totalCents - paid;
+    detail.returnedCents = balance?.returnedCents ?? 0;
+    detail.balanceCents = balance?.balanceCents ?? order.totalCents - paid;
     detail.payments = paymentRows.map((p) => ({ ...p, amountCents: Number(p.amountCents) }));
   }
 
