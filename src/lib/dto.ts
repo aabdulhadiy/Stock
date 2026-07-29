@@ -180,18 +180,37 @@ export function toOrderTotal(
 // ---------------------------------------------------------------------------
 
 /**
- * Key fragments that must never reach a role lacking the matching permission.
- * Deliberately broad — a new field called `marginCents` or `profitCents` is
- * caught by the substring rule without anyone remembering to update a list.
+ * What counts as money, for the leak detector.
+ *
+ * Every monetary column in this system is stored in integer cents and named
+ * `…Cents`, so that suffix is the reliable signal — it catches a brand-new
+ * `marginCents` without anyone remembering to update a list. The word lists
+ * then cover money-ish names that are not amounts in cents (ratios, shares).
+ *
+ * The rule is deliberately NOT "any key containing 'total'": the warehouseman
+ * legitimately receives `totalUnits`, `totalBoxes` and `totalWeightKg` from the
+ * §7.4 picking summary, and banning the word would flag the very data they need.
  */
-const COST_KEYS = ["cost", "margin", "profit"];
-const PRICE_KEYS = ["price", "total", "revenue", "value", "amount"];
-const EXPENSE_KEYS = ["expense"];
+const MONEY_SUFFIX = /(cents|margin|ratio)$/i;
+
+/** Money-ish fragments only the Director may see (§2.2: cost, margins, expenses). */
+const COST_FRAGMENTS = ["cost", "margin", "profit", "expense"];
+
+/** Money-ish fragments a warehouseman may not see, but a salesperson may. */
+const PRICE_FRAGMENTS = [
+  "price",
+  "revenue",
+  "amount",
+  "balance",
+  "paid",
+  "debt",
+  "valueat",
+];
 
 function forbiddenFragments(role: Role): string[] {
   const out: string[] = [];
-  if (!canSeeCost(role)) out.push(...COST_KEYS, ...EXPENSE_KEYS);
-  if (!canSeeSalePrices(role)) out.push(...PRICE_KEYS);
+  if (!canSeeCost(role)) out.push(...COST_FRAGMENTS);
+  if (!canSeeSalePrices(role)) out.push(...PRICE_FRAGMENTS);
   return out;
 }
 
@@ -201,10 +220,20 @@ function forbiddenFragments(role: Role): string[] {
  */
 export function findForbiddenKeys(payload: unknown, role: Role): string[] {
   const fragments = forbiddenFragments(role);
-  if (fragments.length === 0) return [];
+  // A Director may see everything, so there is nothing to look for.
+  const checkSuffix = !canSeeSalePrices(role) || !canSeeCost(role);
+  if (fragments.length === 0 && !checkSuffix) return [];
 
   const hits: string[] = [];
   const seen = new WeakSet<object>();
+
+  const isForbidden = (key: string): boolean => {
+    const lower = key.toLowerCase();
+    if (fragments.some((f) => lower.includes(f))) return true;
+    // `…Cents` is always an amount of money; a warehouseman may see none of it,
+    // and a salesperson only the ones the DTO layer chose to include.
+    return !canSeeSalePrices(role) && MONEY_SUFFIX.test(key);
+  };
 
   const walk = (value: unknown, path: string) => {
     if (value === null || typeof value !== "object") return;
@@ -218,11 +247,8 @@ export function findForbiddenKeys(payload: unknown, role: Role): string[] {
     if (value instanceof Date) return;
 
     for (const [key, child] of Object.entries(value)) {
-      const lower = key.toLowerCase();
       const childPath = path ? `${path}.${key}` : key;
-      if (fragments.some((f) => lower.includes(f))) {
-        hits.push(childPath);
-      }
+      if (isForbidden(key)) hits.push(childPath);
       walk(child, childPath);
     }
   };

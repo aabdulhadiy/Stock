@@ -1,20 +1,37 @@
+# Warehouse & Sales Management System — single-VPS deployment (§16).
+#
+# Services: the app (backend + built frontend), PostgreSQL, an nginx reverse
+# proxy terminating HTTPS, certbot for certificates, and a backup sidecar taking
+# a daily pg_dump.
+#
+#   docker compose up -d --build     start everything
+#   docker compose logs -f app       follow application logs
+#   bash scripts/backup.sh           take a backup right now
+#   bash scripts/restore.sh <file>   restore one
+#
+# Every piece of persistent state — database, uploads, backups, certificates —
+# is on a named volume, so rebuilding or rolling back a container never touches
+# it (§16.1).
+
 services:
   db:
     image: postgres:16-alpine
     restart: unless-stopped
     environment:
-      POSTGRES_USER: stock
-      POSTGRES_PASSWORD: stock
-      POSTGRES_DB: stockdb
-    ports:
-      - "5432:5432"
+      POSTGRES_USER: ${POSTGRES_USER:-stock}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: ${POSTGRES_DB:-stockdb}
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U stock -d stockdb"]
-      interval: 5s
+      test:
+        ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-stock} -d ${POSTGRES_DB:-stockdb}"]
+      interval: 10s
       timeout: 5s
       retries: 10
+    # Not published to the host: only the app and the backup sidecar need it.
+    expose:
+      - "5432"
 
   app:
     build: .
@@ -23,14 +40,76 @@ services:
       db:
         condition: service_healthy
     environment:
-      DATABASE_URL: postgresql://stock:stock@db:5432/stockdb
-      AUTH_SECRET: ${AUTH_SECRET:-change-me-in-production-0123456789abcdef}
-      SEED_ADMIN_EMAIL: ${SEED_ADMIN_EMAIL:-admin@toy.local}
-      SEED_ADMIN_PASSWORD: ${SEED_ADMIN_PASSWORD:-admin12345}
-      SEED_EXCHANGE_RATE: ${SEED_EXCHANGE_RATE:-12600}
+      DATABASE_URL: postgresql://${POSTGRES_USER:-stock}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-stockdb}
+      AUTH_SECRET: ${AUTH_SECRET:?set AUTH_SECRET in .env (32+ random characters)}
+      DB_POOL_MAX: ${DB_POOL_MAX:-15}
+      UPLOAD_DIR: /app/var/uploads
       NODE_ENV: production
+      # Seed values, used only by a one-off `npm run db:seed`.
+      SEED_DIRECTOR_LOGIN: ${SEED_DIRECTOR_LOGIN:-director}
+      SEED_DIRECTOR_PASSWORD: ${SEED_DIRECTOR_PASSWORD:-}
+      SEED_DIRECTOR_NAME: ${SEED_DIRECTOR_NAME:-Director}
+    volumes:
+      - uploads:/app/var/uploads
+    expose:
+      - "3000"
+
+  nginx:
+    image: nginx:1.27-alpine
+    restart: unless-stopped
+    depends_on:
+      - app
     ports:
-      - "3000:3000"
+      - "80:80"
+      - "443:443"
+    environment:
+      APP_DOMAIN: ${APP_DOMAIN:-localhost}
+    volumes:
+      - ./deploy/nginx.conf.template:/etc/nginx/templates/default.conf.template:ro
+      # Let's Encrypt material, shared with certbot.
+      - certbot-conf:/etc/letsencrypt:ro
+      - certbot-www:/var/www/certbot:ro
+
+  # Certificate issue and renewal: renew if due, sleep 12h, repeat.
+  certbot:
+    image: certbot/certbot:latest
+    restart: unless-stopped
+    volumes:
+      - certbot-conf:/etc/letsencrypt
+      - certbot-www:/var/www/certbot
+    entrypoint: >
+      sh -c "trap exit TERM;
+             while :; do certbot renew --webroot -w /var/www/certbot --quiet;
+             sleep 12h & wait $${!}; done"
+
+  # Daily pg_dump into a named volume, plus a copy to an off-server mount (§14).
+  backup:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      PGHOST: db
+      PGUSER: ${POSTGRES_USER:-stock}
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+      PGDATABASE: ${POSTGRES_DB:-stockdb}
+      # §14: retain at least 30 days.
+      RETENTION_DAYS: ${BACKUP_RETENTION_DAYS:-30}
+      BACKUP_HOUR: ${BACKUP_HOUR:-2}
+    volumes:
+      - backups:/backups
+      # Point this at a second disk or a remote share so backups also live off
+      # the application server, as §14 requires. It defaults to a local folder
+      # so a single-disk install still works out of the box — but that is NOT
+      # off-server storage, and the runbook says so.
+      - ${BACKUP_OFFSITE_DIR:-./var/backups-offsite}:/offsite
+      - ./scripts/backup-loop.sh:/usr/local/bin/backup-loop.sh:ro
+    entrypoint: ["sh", "/usr/local/bin/backup-loop.sh"]
 
 volumes:
   pgdata:
+  uploads:
+  backups:
+  certbot-conf:
+  certbot-www:

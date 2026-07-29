@@ -107,11 +107,13 @@ export function formatMoney(
   locale: LocaleCode = DEFAULT_LOCALE,
 ): string {
   if (cents === null || cents === undefined) return "—";
+  // The sign belongs in front of the currency symbol: "-$5.00", not "$-5.00".
+  const sign = cents < 0 ? "-" : "";
   const formatted = new Intl.NumberFormat(LOCALE_TAGS[locale], {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
-  }).format(cents / 100);
-  return `$${formatted}`;
+  }).format(Math.abs(cents) / 100);
+  return `${sign}$${formatted}`;
 }
 
 /** Compact money for dashboard tiles: $12.3k / $1.2M. */
@@ -122,9 +124,10 @@ export function formatMoneyShort(
   const dollars = cents / 100;
   const abs = Math.abs(dollars);
   if (abs < 10_000) return formatMoney(cents, locale);
+  const sign = cents < 0 ? "-" : "";
   const [value, suffix] =
-    abs >= 1_000_000 ? [dollars / 1_000_000, "M"] : [dollars / 1_000, "k"];
-  return `$${new Intl.NumberFormat(LOCALE_TAGS[locale], {
+    abs >= 1_000_000 ? [abs / 1_000_000, "M"] : [abs / 1_000, "k"];
+  return `${sign}$${new Intl.NumberFormat(LOCALE_TAGS[locale], {
     maximumFractionDigits: 1,
   }).format(value)}${suffix}`;
 }

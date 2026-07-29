@@ -38,7 +38,12 @@ export interface OrderListRow {
   status: OrderStatus;
   customerId: string;
   customerName: string;
-  priceType: "MARKET" | "EXPORT";
+  /**
+   * Which of the two sale prices the order uses. Absent for the warehouseman:
+   * §2.2 gives them no access to Market or Export prices, and the price *type*
+   * names them directly.
+   */
+  priceType?: "MARKET" | "EXPORT";
   createdAt: Date;
   plannedShipDate: string;
   actualShipDate: string | null;
@@ -196,7 +201,6 @@ export async function listOrders(
         status: r.status,
         customerId: r.customerId,
         customerName: r.customerName,
-        priceType: r.priceType,
         createdAt: r.createdAt,
         plannedShipDate: r.plannedShipDate,
         actualShipDate: r.actualShipDate,
@@ -216,6 +220,7 @@ export async function listOrders(
       };
 
       if (showMoney) {
+        row.priceType = r.priceType;
         row.totalCents = r.totalCents;
         row.paidCents = paid;
         row.returnedCents = returned;
@@ -243,7 +248,8 @@ export interface OrderDetail {
   id: string;
   number: string;
   status: OrderStatus;
-  priceType: "MARKET" | "EXPORT";
+  /** Absent for the warehouseman — see the note on OrderListRow.priceType. */
+  priceType?: "MARKET" | "EXPORT";
   createdAt: Date;
   createdById: string | null;
   createdByName: string | null;
@@ -405,7 +411,6 @@ export async function getOrderDetail(
     id: order.id,
     number: order.number,
     status: order.status,
-    priceType: order.priceType,
     createdAt: order.createdAt,
     createdById: order.createdById,
     createdByName: order.createdByName,
@@ -435,6 +440,7 @@ export async function getOrderDetail(
   };
 
   if (role === "DIRECTOR" || role === "SALESPERSON") {
+    detail.priceType = order.priceType;
     const paymentRows = await exec
       .select({
         id: payments.id,

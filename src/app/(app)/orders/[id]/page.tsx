@@ -221,9 +221,12 @@ export default async function OrderDetailPage({
                 {order.customer.city && (
                   <DetailRow label={t("customer.city")}>{order.customer.city}</DetailRow>
                 )}
-                <DetailRow label={t("order.priceType")}>
-                  {t(priceTypeKey(order.priceType))}
-                </DetailRow>
+                {/* Absent for the warehouseman (§2.2). */}
+                {order.priceType && (
+                  <DetailRow label={t("order.priceType")}>
+                    {t(priceTypeKey(order.priceType))}
+                  </DetailRow>
+                )}
                 <DetailRow label={t("order.paymentMethod")}>
                   {t(paymentMethodKey(order.paymentMethod))}
                 </DetailRow>

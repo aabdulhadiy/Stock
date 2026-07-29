@@ -51,7 +51,9 @@ export default async function EditOrderPage({
         values={{
           id: order.id,
           customerId: order.customer.id,
-          priceType: order.priceType,
+          // Reachable only by roles that may see sale prices, so priceType is
+          // always present here; fall back to MARKET to satisfy the type.
+          priceType: order.priceType ?? "MARKET",
           plannedShipDate: order.plannedShipDate,
           paymentMethod: order.paymentMethod,
           paymentTermDays: order.paymentTermDays,

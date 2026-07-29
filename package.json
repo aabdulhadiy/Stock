@@ -1,19 +1,20 @@
 {
-  "name": "toy-inventory",
-  "version": "0.1.0",
+  "name": "warehouse-sales",
+  "version": "2.0.0",
   "private": true,
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "start": "next start",
+    "start": "bash scripts/start.sh",
     "lint": "eslint",
-    "setup": "bash scripts/setup.sh",
+    "setup": "bash scripts/session-setup.sh",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "db:push": "drizzle-kit push",
     "db:seed": "tsx src/db/seed.ts",
     "db:studio": "drizzle-kit studio",
-    "test": "tsx --conditions=react-server --test --test-concurrency=1 \"src/**/*.test.ts\""
+    "test": "tsx --conditions=react-server --test --test-concurrency=1 \"src/**/*.test.ts\"",
+    "smoke": "node scripts/smoke.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.4.0",
