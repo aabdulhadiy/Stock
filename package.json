@@ -13,7 +13,7 @@
     "db:push": "drizzle-kit push",
     "db:seed": "tsx src/db/seed.ts",
     "db:studio": "drizzle-kit studio",
-    "test": "tsx --test \"src/**/*.test.ts\""
+    "test": "tsx --conditions=react-server --test \"src/**/*.test.ts\""
   },
   "dependencies": {
     "@hookform/resolvers": "^5.4.0",
@@ -28,6 +28,7 @@
     "react": "19.2.4",
     "react-dom": "19.2.4",
     "react-hook-form": "^7.80.0",
+    "server-only": "^0.0.1",
     "tailwind-merge": "^3.6.0",
     "zod": "^4.4.3"
   },
