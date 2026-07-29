@@ -3,14 +3,12 @@ import assert from "node:assert/strict";
 import { eq, inArray } from "drizzle-orm";
 import { db, closeDb } from "@/db";
 import {
-  categories,
   customers,
   orderItems,
   orders,
   productStock,
   products,
   stockMovements,
-  users,
 } from "@/db/schema";
 import {
   applyMovement,
@@ -41,6 +39,9 @@ const nextSku = () => `${PREFIX}${++seq}`;
 
 const TODAY = "2026-07-29";
 
+const createdProducts: string[] = [];
+const createdCustomers: string[] = [];
+
 async function makeProduct(opts: { onHand?: number } = {}): Promise<string> {
   const [row] = await db
     .insert(products)
@@ -60,6 +61,7 @@ async function makeProduct(opts: { onHand?: number } = {}): Promise<string> {
     })
     .returning({ id: products.id });
 
+  createdProducts.push(row.id);
   await ensureStockRow(db, row.id);
   if (opts.onHand) {
     await db.transaction(async (tx) => {
@@ -84,6 +86,7 @@ async function makeCustomer(): Promise<string> {
       defaultPriceType: "MARKET",
     })
     .returning({ id: customers.id });
+  createdCustomers.push(row.id);
   return row.id;
 }
 
@@ -130,28 +133,29 @@ async function accept(orderId: string) {
 }
 
 test.after(async () => {
-  const ids = await db
-    .select({ id: products.id })
-    .from(products)
-    .where(inArray(products.sku, Array.from({ length: seq }, (_, i) => `${PREFIX}${i + 1}`)));
-  const productIds = ids.map((r) => r.id);
+  // Scoped cleanup: only rows this suite created. Deleting whole tables would
+  // wipe the seeded Director and race the other DB suites.
+  const ownedOrders = createdCustomers.length
+    ? await db
+        .select({ id: orders.id })
+        .from(orders)
+        .where(inArray(orders.customerId, createdCustomers))
+    : [];
+  const orderIds = ownedOrders.map((o) => o.id);
 
-  const testOrders = await db.select({ id: orders.id }).from(orders);
-  const orderIds = testOrders.map((o) => o.id);
   if (orderIds.length) {
     await db.delete(orderItems).where(inArray(orderItems.orderId, orderIds));
+    await db.delete(stockMovements).where(inArray(stockMovements.orderId, orderIds));
+    await db.delete(orders).where(inArray(orders.id, orderIds));
   }
-  if (productIds.length) {
-    await db.delete(stockMovements).where(inArray(stockMovements.productId, productIds));
+  if (createdProducts.length) {
+    await db.delete(stockMovements).where(inArray(stockMovements.productId, createdProducts));
+    await db.delete(productStock).where(inArray(productStock.productId, createdProducts));
+    await db.delete(products).where(inArray(products.id, createdProducts));
   }
-  await db.delete(orders);
-  await db.delete(customers);
-  if (productIds.length) {
-    await db.delete(productStock).where(inArray(productStock.productId, productIds));
-    await db.delete(products).where(inArray(products.id, productIds));
+  if (createdCustomers.length) {
+    await db.delete(customers).where(inArray(customers.id, createdCustomers));
   }
-  await db.delete(categories);
-  await db.delete(users);
   await closeDb();
 });
 

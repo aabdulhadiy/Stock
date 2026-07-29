@@ -13,7 +13,7 @@
     "db:push": "drizzle-kit push",
     "db:seed": "tsx src/db/seed.ts",
     "db:studio": "drizzle-kit studio",
-    "test": "tsx --conditions=react-server --test \"src/**/*.test.ts\""
+    "test": "tsx --conditions=react-server --test --test-concurrency=1 \"src/**/*.test.ts\""
   },
   "dependencies": {
     "@hookform/resolvers": "^5.4.0",
