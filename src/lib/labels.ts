@@ -3,7 +3,6 @@ import type {
   CountStatus,
   EnteredAs,
   ExpenseType,
-  Locale,
   MeasureBasis,
   MovementType,
   OrderStatus,
@@ -47,7 +46,6 @@ export const expenseTypeKey = (t: ExpenseType): TranslationKey =>
   `expcat.type.${t}` as TranslationKey;
 export const gradeKey = (g: CustomerGrade): TranslationKey =>
   `customer.grade.${g}` as TranslationKey;
-export const localeLabelKey = (_l: Locale): TranslationKey => "common.language";
 
 export type CustomerGrade = "A" | "B" | "C" | "D";
 

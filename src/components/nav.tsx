@@ -40,12 +40,13 @@ export function AppShell({
 }) {
   const t = useT();
   const pathname = usePathname();
-  const [open, setOpen] = React.useState(false);
 
-  // Close the drawer whenever the route changes.
-  React.useEffect(() => {
-    setOpen(false);
-  }, [pathname]);
+  // The drawer is remembered as "open for this route" rather than as a plain
+  // boolean, so navigating away closes it by derivation — no effect syncing
+  // state to the pathname, and no flash of an open drawer on the new page.
+  const [openFor, setOpenFor] = React.useState<string | null>(null);
+  const open = openFor === pathname;
+  const setOpen = (next: boolean) => setOpenFor(next ? pathname : null);
 
   return (
     <div className="min-h-screen lg:flex">
@@ -53,7 +54,7 @@ export function AppShell({
       <div className="lg:hidden sticky top-0 z-30 flex items-center justify-between gap-2 border-b border-border bg-surface px-4 py-2.5">
         <button
           type="button"
-          onClick={() => setOpen((v) => !v)}
+          onClick={() => setOpen(!open)}
           aria-expanded={open}
           aria-controls="app-sidebar"
           className="inline-flex items-center gap-2 rounded-md px-2 py-1.5 text-sm font-medium hover:bg-slate-100"

@@ -433,8 +433,9 @@ export function Thumb({
     );
   }
   return (
-    // eslint-disable-next-line @next/next/no-img-element -- uploads are served
-    // by our own authenticated route handler, not the image optimizer.
+    // Uploads are served by our own authenticated route handler (§14), which
+    // next/image's optimizer cannot reach — so a plain <img> is correct here.
+    // eslint-disable-next-line @next/next/no-img-element
     <img
       src={src}
       alt={alt}

@@ -49,10 +49,16 @@ export async function proxy(req: NextRequest) {
   // Inactivity timeout: extend the cookie while the user keeps working, so the
   // session expires N hours after their *last* request, not after sign-in.
   if (shouldRenew(session)) {
-    const { exp: _exp, ...user } = session;
     res.cookies.set(
       SESSION_COOKIE,
-      await signSession(user),
+      await signSession({
+        sub: session.sub,
+        login: session.login,
+        name: session.name,
+        role: session.role,
+        locale: session.locale,
+        ttl: session.ttl,
+      }),
       cookieOptions(session.ttl),
     );
   }
